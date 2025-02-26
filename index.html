@@ -1,0 +1,218 @@
+# Liquid-Biopsy Animation
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Liquid Biopsy Animation</title>
+    <style>
+        body {
+            background-color: black;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            overflow: hidden;
+        }
+        canvas {
+            background: radial-gradient(circle, #550000 30%, #220000 80%);
+        }
+    </style>
+</head>
+<body>
+    <canvas id="canvas"></canvas>
+
+    <script>
+        const canvas = document.getElementById("canvas");
+        const ctx = canvas.getContext("2d");
+        canvas.width = window.innerWidth - 20;
+        canvas.height = window.innerHeight - 20;
+
+        // Colors
+        const RED = "#D32F2F"; // Normal Blood Cells
+        const PURPLE = "#8E24AA"; // CTCs (Circulating Tumor Cells)
+        const BLUE = "#1976D2"; // Normal ctDNA
+        const GREEN = "#43A047"; // Detected ctDNA
+        const YELLOW = "#FFEB3B"; // Scanner
+        const BLOOD_GLOW = "rgba(255, 0, 0, 0.2)"; // Soft blood plasma glow
+
+        let mouseX = canvas.width / 2;
+        let mouseY = canvas.height / 2;
+        const scannerRadius = 40; // Scanner circle size
+
+        // Plasma Particles for Background
+        class PlasmaParticle {
+            constructor() {
+                this.x = Math.random() * canvas.width;
+                this.y = Math.random() * canvas.height;
+                this.radius = Math.random() * 3 + 1;
+                this.speedY = Math.random() * 0.5 + 0.2;
+            }
+
+            move() {
+                this.y += this.speedY;
+                if (this.y >= canvas.height) {
+                    this.y = 0;
+                }
+            }
+
+            draw() {
+                ctx.fillStyle = BLOOD_GLOW;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        // General Cell Class
+        class Cell {
+            constructor(x, y, radius, color, speed) {
+                this.x = x || Math.random() * canvas.width;
+                this.y = y || Math.random() * canvas.height;
+                this.radius = radius;
+                this.color = color;
+                this.speedX = (Math.random() - 0.5) * speed;
+                this.speedY = (Math.random() - 0.5) * speed;
+            }
+
+            move() {
+                this.x += this.speedX;
+                this.y += this.speedY;
+
+                // Bounce from walls
+                if (this.x <= 0 || this.x >= canvas.width) this.speedX *= -1;
+                if (this.y <= 0 || this.y >= canvas.height) this.speedY *= -1;
+            }
+
+            draw() {
+                ctx.fillStyle = this.color;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        // CTC (Circulating Tumor Cell) Class
+        class CTC extends Cell {
+            constructor() {
+                super(null, null, 15, PURPLE, 1.2);
+                this.ctdna = [];
+            }
+
+            move() {
+                super.move();
+                if (Math.random() < 0.005) { // Decreased ctDNA release frequency
+                    this.ctdna.push(new ctDNA(this.x, this.y));
+                }
+            }
+
+            draw() {
+                super.draw();
+                this.ctdna.forEach(dna => {
+                    dna.move();
+                    dna.draw();
+                });
+            }
+        }
+
+        // ctDNA Class
+        class ctDNA extends Cell {
+            constructor(x, y) {
+                super(x, y, 5, BLUE, 0.8);
+                this.detected = false;
+            }
+
+            move() {
+                super.move();
+                // Change color if inside scanner
+                let dx = this.x - mouseX;
+                let dy = this.y - mouseY;
+                if (Math.sqrt(dx * dx + dy * dy) < scannerRadius) {
+                    this.detected = true;
+                    this.color = GREEN;
+                }
+            }
+        }
+
+        // Increase blood cells and adjust ctDNA release
+        let plasmaParticles = Array.from({ length: 60 }, () => new PlasmaParticle()); // Increased
+        let bloodCells = Array.from({ length: 25 }, () => new Cell(null, null, 8, RED, 1.2)); // Increased
+        let ctcs = Array.from({ length: 5 }, () => new CTC()); // CTC count unchanged
+
+        // Mouse movement for scanner
+        canvas.addEventListener("mousemove", (event) => {
+            mouseX = event.clientX;
+            mouseY = event.clientY;
+        });
+
+        canvas.addEventListener("touchmove", (event) => {
+            mouseX = event.touches[0].clientX;
+            mouseY = event.touches[0].clientY;
+        });
+
+        // Legend Function
+        function drawLegend() {
+            ctx.fillStyle = "#FFF";
+            ctx.fillRect(canvas.width - 200, 10, 180, 120);
+
+            ctx.fillStyle = RED;
+            ctx.beginPath();
+            ctx.arc(canvas.width - 180, 30, 8, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = "#000";
+            ctx.fillText("Blood Cell", canvas.width - 160, 35);
+
+            ctx.fillStyle = PURPLE;
+            ctx.beginPath();
+            ctx.arc(canvas.width - 180, 50, 15, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = "#000";
+            ctx.fillText("CTC (Cancer Cell)", canvas.width - 160, 55);
+
+            ctx.fillStyle = BLUE;
+            ctx.beginPath();
+            ctx.arc(canvas.width - 180, 75, 5, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = "#000";
+            ctx.fillText("ctDNA (Normal)", canvas.width - 160, 80);
+
+            ctx.fillStyle = GREEN;
+            ctx.beginPath();
+            ctx.arc(canvas.width - 180, 95, 5, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = "#000";
+            ctx.fillText("ctDNA (Detected)", canvas.width - 160, 100);
+
+            ctx.strokeStyle = YELLOW;
+            ctx.beginPath();
+            ctx.arc(canvas.width - 180, 115, 10, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.fillText("Scanner", canvas.width - 160, 120);
+        }
+
+        // Animation Loop
+        function animate() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            plasmaParticles.forEach(particle => { particle.move(); particle.draw(); });
+            bloodCells.forEach(cell => { cell.move(); cell.draw(); });
+            ctcs.forEach(ctc => { ctc.move(); ctc.draw(); });
+
+            // Draw scanner
+            ctx.strokeStyle = YELLOW;
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.arc(mouseX, mouseY, scannerRadius, 0, Math.PI * 2);
+            ctx.stroke();
+
+            drawLegend();
+            requestAnimationFrame(animate);
+        }
+
+        animate();
+    </script>
+</body>
+</html>
